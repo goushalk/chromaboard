@@ -7,27 +7,34 @@ import (
 )
 
 var (
-	// Text styles
+	/* ================= TEXT ================= */
+
 	titleStyle = lipgloss.NewStyle().
 			Bold(true)
 
 	activeText = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("231")). // white
+			Foreground(lipgloss.Color("231")).
 			Bold(true)
 
 	inactiveText = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
 
-	// Borders
-	inactiveBorder = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("250")) // white
+	/* ================= OUTER APP BORDER ================= */
 
-	activeBorder = lipgloss.NewStyle().
-			Border(lipgloss.ThickBorder()).
-			BorderForeground(lipgloss.Color("81")) // cyan accent
+	appBorder = lipgloss.NewStyle().
+			Border(lipgloss.DoubleBorder()).
+			BorderForeground(lipgloss.Color("81")) // cyan
 
-	// Board active borders
+	appTitleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("81")).
+			Bold(true)
+
+	/* ================= PANE BORDERS ================= */
+
+	inactivePaneBorder = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(lipgloss.Color("250")) // white
+
 	todoBorderActive = lipgloss.NewStyle().
 				Border(lipgloss.ThickBorder()).
 				BorderForeground(lipgloss.Color("196")) // red
@@ -42,9 +49,11 @@ var (
 )
 
 func (m Model) View() string {
+	var inner string
+
 	// ---------- INPUT MODE ----------
 	if m.InputActive {
-		label := "Input:"
+		label := "Input"
 		if m.InputType == InputNewProject {
 			label = "New Project"
 		}
@@ -55,79 +64,92 @@ func (m Model) View() string {
 			label = "Rename Task"
 		}
 
-		return "\n" +
-			titleStyle.Render(label) + "\n\n" +
+		inner = titleStyle.Render(label) + "\n\n" +
 			m.InputValue + "\n\n" +
 			inactiveText.Render("Enter = save • Esc = cancel")
+	} else {
+		switch m.ActivePane {
+		case PaneProjects:
+			inner = renderProjectsPane(m)
+		case PaneBoard:
+			inner = renderBoard(m)
+		default:
+			inner = "unknown state"
+		}
 	}
 
-	switch m.ActivePane {
-	case PaneProjects:
-		return renderProjectsPane(m)
-	case PaneBoard:
-		return renderBoard(m)
-	default:
-		return "unknown state"
+	// ---------- RESPONSIVE FRAME ----------
+	width := m.Width
+	height := m.Height
+	if width < 60 {
+		width = 60
 	}
+	if height < 20 {
+		height = 20
+	}
+
+	// Render bordered app
+	framed := appBorder.
+		Width(width-2).
+		Height(height-2).
+		Padding(1, 2).
+		Render(inner)
+
+	// Overlay title ON the top border
+	title := appTitleStyle.Render(" Chromaboard ")
+
+	titleLine := lipgloss.Place(
+		width-2,
+		1,
+		lipgloss.Center,
+		lipgloss.Top,
+		title,
+	)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Top,
+		titleLine,
+		framed,
+	)
 }
 
 /* ================= PROJECT SELECTION ================= */
 
 func renderProjectsPane(m Model) string {
-	width := m.Width - 4
-	if width < 40 {
-		width = 40
-	}
-
-	height := m.Height - 4
-	if height < 10 {
-		height = 10
-	}
-
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render(" Projects "))
-	b.WriteString("\n\n")
+	b.WriteString(titleStyle.Render("Projects") + "\n\n")
 
 	if len(m.Projects) == 0 {
 		b.WriteString(inactiveText.Render("No projects yet\n"))
 		b.WriteString(inactiveText.Render("Press 'n' to create one"))
 	} else {
 		for i, name := range m.Projects {
-			line := "  " + name
 			if i == m.ProjectIndex {
-				line = "▶ " + name
-				b.WriteString(activeText.Render(line))
+				b.WriteString(activeText.Render("▶ " + name))
 			} else {
-				b.WriteString(inactiveText.Render(line))
+				b.WriteString(inactiveText.Render("  " + name))
 			}
 			b.WriteString("\n")
 		}
 	}
 
-	content := b.String()
+	b.WriteString("\n")
+	b.WriteString(inactiveText.Render("n: new • enter: open • q: quit"))
 
-	footer := inactiveText.Render(
-		"\n\nn: new project  enter: open  q: quit",
-	)
-
-	return activeBorder.
-		Width(width).
-		Height(height).
+	return inactivePaneBorder.
+		Width(m.Width-8).
+		Height(m.Height-8).
 		Padding(1, 2).
-		Render(content + footer)
+		Render(b.String())
 }
 
 /* ================= BOARD ================= */
 
 func renderBoard(m Model) string {
-	if m.CurrentProject == nil {
-		return "no project loaded"
-	}
-
-	colWidth := (m.Width - 6) / 3
-	if colWidth < 30 {
-		colWidth = 30
+	colWidth := (m.Width - 16) / 3
+	if colWidth < 28 {
+		colWidth = 28
 	}
 
 	todo := renderColumn(m, ColumnTodo, "TODO", colWidth)
@@ -137,10 +159,10 @@ func renderBoard(m Model) string {
 	board := lipgloss.JoinHorizontal(lipgloss.Top, todo, pending, done)
 
 	footer := inactiveText.Render(
-		"\nh/l: column  j/k: move  a: add  r: rename  m: move  d: delete  esc: back",
+		"\nh/l: column • j/k: move • a: add • r: rename • m: move • d: delete • esc: back",
 	)
 
-	return titleStyle.Render(" "+m.CurrentProject.Name+" ") +
+	return titleStyle.Render(m.CurrentProject.Name) +
 		"\n\n" + board + "\n" + footer
 }
 
@@ -175,7 +197,7 @@ func renderColumn(m Model, col Column, title string, width int) string {
 		b.WriteString(inactiveText.Render("(empty)\n"))
 	}
 
-	minHeight := m.Height - 8
+	minHeight := m.Height - 12
 	if minHeight < 10 {
 		minHeight = 10
 	}
@@ -191,7 +213,7 @@ func renderColumn(m Model, col Column, title string, width int) string {
 			style = doneBorderActive
 		}
 	} else {
-		style = inactiveBorder
+		style = inactivePaneBorder
 	}
 
 	return style.
