@@ -7,26 +7,38 @@ import (
 )
 
 var (
-	titleStyle = lipgloss.NewStyle().Bold(true)
-
-	activeStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("205")).
+	// Text styles
+	titleStyle = lipgloss.NewStyle().
 			Bold(true)
 
-	inactiveStyle = lipgloss.NewStyle().
+	activeText = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("231")). // white
+			Bold(true)
+
+	inactiveText = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
 
-	todoBorder = lipgloss.NewStyle().
+	// Borders
+	inactiveBorder = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("196"))
+			BorderForeground(lipgloss.Color("250")) // white
 
-	pendingBorder = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("220"))
+	activeBorder = lipgloss.NewStyle().
+			Border(lipgloss.ThickBorder()).
+			BorderForeground(lipgloss.Color("81")) // cyan accent
 
-	doneBorder = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("46"))
+	// Board active borders
+	todoBorderActive = lipgloss.NewStyle().
+				Border(lipgloss.ThickBorder()).
+				BorderForeground(lipgloss.Color("196")) // red
+
+	pendingBorderActive = lipgloss.NewStyle().
+				Border(lipgloss.ThickBorder()).
+				BorderForeground(lipgloss.Color("220")) // yellow
+
+	doneBorderActive = lipgloss.NewStyle().
+				Border(lipgloss.ThickBorder()).
+				BorderForeground(lipgloss.Color("46")) // green
 )
 
 func (m Model) View() string {
@@ -34,24 +46,24 @@ func (m Model) View() string {
 	if m.InputActive {
 		label := "Input:"
 		if m.InputType == InputNewProject {
-			label = "New Project:"
+			label = "New Project"
 		}
 		if m.InputType == InputNewTask {
-			label = "New Task:"
+			label = "New Task"
 		}
 		if m.InputType == InputRenameTask {
-			label = "Rename Task:"
+			label = "Rename Task"
 		}
 
 		return "\n" +
 			titleStyle.Render(label) + "\n\n" +
 			m.InputValue + "\n\n" +
-			inactiveStyle.Render("Enter = save | Esc = cancel")
+			inactiveText.Render("Enter = save • Esc = cancel")
 	}
 
 	switch m.ActivePane {
 	case PaneProjects:
-		return renderProjects(m)
+		return renderProjectsPane(m)
 	case PaneBoard:
 		return renderBoard(m)
 	default:
@@ -59,29 +71,54 @@ func (m Model) View() string {
 	}
 }
 
-/* ---------- PROJECTS ---------- */
+/* ================= PROJECT SELECTION ================= */
 
-func renderProjects(m Model) string {
-	var b strings.Builder
-
-	b.WriteString(titleStyle.Render("Projects\n\n"))
-
-	for i, name := range m.Projects {
-		if i == m.ProjectIndex {
-			b.WriteString(activeStyle.Render("> " + name))
-		} else {
-			b.WriteString(inactiveStyle.Render("  " + name))
-		}
-		b.WriteString("\n")
+func renderProjectsPane(m Model) string {
+	width := m.Width - 4
+	if width < 40 {
+		width = 40
 	}
 
-	b.WriteString("\n")
-	b.WriteString(inactiveStyle.Render("n: new  enter: open  q: quit"))
+	height := m.Height - 4
+	if height < 10 {
+		height = 10
+	}
 
-	return b.String()
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render(" Projects "))
+	b.WriteString("\n\n")
+
+	if len(m.Projects) == 0 {
+		b.WriteString(inactiveText.Render("No projects yet\n"))
+		b.WriteString(inactiveText.Render("Press 'n' to create one"))
+	} else {
+		for i, name := range m.Projects {
+			line := "  " + name
+			if i == m.ProjectIndex {
+				line = "▶ " + name
+				b.WriteString(activeText.Render(line))
+			} else {
+				b.WriteString(inactiveText.Render(line))
+			}
+			b.WriteString("\n")
+		}
+	}
+
+	content := b.String()
+
+	footer := inactiveText.Render(
+		"\n\nn: new project  enter: open  q: quit",
+	)
+
+	return activeBorder.
+		Width(width).
+		Height(height).
+		Padding(1, 2).
+		Render(content + footer)
 }
 
-/* ---------- BOARD ---------- */
+/* ================= BOARD ================= */
 
 func renderBoard(m Model) string {
 	if m.CurrentProject == nil {
@@ -89,6 +126,9 @@ func renderBoard(m Model) string {
 	}
 
 	colWidth := (m.Width - 6) / 3
+	if colWidth < 30 {
+		colWidth = 30
+	}
 
 	todo := renderColumn(m, ColumnTodo, "TODO", colWidth)
 	pending := renderColumn(m, ColumnPending, "Pending", colWidth)
@@ -96,20 +136,23 @@ func renderBoard(m Model) string {
 
 	board := lipgloss.JoinHorizontal(lipgloss.Top, todo, pending, done)
 
-	footer := inactiveStyle.Render(
+	footer := inactiveText.Render(
 		"\nh/l: column  j/k: move  a: add  r: rename  m: move  d: delete  esc: back",
 	)
 
-	return titleStyle.Render(m.CurrentProject.Name) + "\n\n" + board + footer
+	return titleStyle.Render(" "+m.CurrentProject.Name+" ") +
+		"\n\n" + board + "\n" + footer
 }
+
+/* ================= COLUMN ================= */
 
 func renderColumn(m Model, col Column, title string, width int) string {
 	var b strings.Builder
 
 	if m.ActiveColumn == col {
-		b.WriteString(activeStyle.Render(title) + "\n")
+		b.WriteString(activeText.Render(title) + "\n\n")
 	} else {
-		b.WriteString(inactiveStyle.Render(title) + "\n")
+		b.WriteString(inactiveText.Render(title) + "\n\n")
 	}
 
 	index := 0
@@ -120,28 +163,40 @@ func renderColumn(m Model, col Column, title string, width int) string {
 
 		line := "• " + t.Title
 		if m.ActiveColumn == col && index == m.TaskIndex {
-			b.WriteString(activeStyle.Render(line))
+			b.WriteString(activeText.Render(line))
 		} else {
-			b.WriteString(inactiveStyle.Render(line))
+			b.WriteString(inactiveText.Render(line))
 		}
 		b.WriteString("\n")
 		index++
 	}
 
 	if index == 0 {
-		b.WriteString(inactiveStyle.Render("(empty)\n"))
+		b.WriteString(inactiveText.Render("(empty)\n"))
 	}
 
-	style := todoBorder
-	if col == ColumnPending {
-		style = pendingBorder
+	minHeight := m.Height - 8
+	if minHeight < 10 {
+		minHeight = 10
 	}
-	if col == ColumnDone {
-		style = doneBorder
+
+	var style lipgloss.Style
+	if m.ActiveColumn == col {
+		switch col {
+		case ColumnTodo:
+			style = todoBorderActive
+		case ColumnPending:
+			style = pendingBorderActive
+		case ColumnDone:
+			style = doneBorderActive
+		}
+	} else {
+		style = inactiveBorder
 	}
 
 	return style.
 		Width(width).
-		Padding(0, 1).
+		Height(minHeight).
+		Padding(1, 2).
 		Render(b.String())
 }
