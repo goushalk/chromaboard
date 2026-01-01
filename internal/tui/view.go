@@ -1,14 +1,22 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
 
-var (
-	/* ================= TEXT ================= */
+/* ================= CONSTANTS ================= */
 
+const (
+	MinWidth  = 80
+	MinHeight = 24
+)
+
+/* ================= STYLES ================= */
+
+var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true)
 
@@ -19,36 +27,46 @@ var (
 	inactiveText = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
 
-	/* ================= OUTER APP BORDER ================= */
+	warnTitle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("196")).
+			Bold(true)
+
+	warnText = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("250"))
 
 	appBorder = lipgloss.NewStyle().
 			Border(lipgloss.DoubleBorder()).
-			BorderForeground(lipgloss.Color("81")) // cyan
+			BorderForeground(lipgloss.Color("81"))
 
 	appTitleStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("81")).
 			Bold(true)
 
-	/* ================= PANE BORDERS ================= */
-
 	inactivePaneBorder = lipgloss.NewStyle().
 				Border(lipgloss.NormalBorder()).
-				BorderForeground(lipgloss.Color("250")) // white
+				BorderForeground(lipgloss.Color("250"))
 
 	todoBorderActive = lipgloss.NewStyle().
 				Border(lipgloss.ThickBorder()).
-				BorderForeground(lipgloss.Color("196")) // red
+				BorderForeground(lipgloss.Color("196"))
 
 	pendingBorderActive = lipgloss.NewStyle().
 				Border(lipgloss.ThickBorder()).
-				BorderForeground(lipgloss.Color("220")) // yellow
+				BorderForeground(lipgloss.Color("220"))
 
 	doneBorderActive = lipgloss.NewStyle().
 				Border(lipgloss.ThickBorder()).
-				BorderForeground(lipgloss.Color("46")) // green
+				BorderForeground(lipgloss.Color("46"))
 )
 
+/* ================= VIEW ================= */
+
 func (m Model) View() string {
+	// ---------- TERMINAL SIZE GUARD ----------
+	if m.Width < MinWidth || m.Height < MinHeight {
+		return renderTooSmall(m)
+	}
+
 	var inner string
 
 	// ---------- INPUT MODE ----------
@@ -67,6 +85,7 @@ func (m Model) View() string {
 		inner = titleStyle.Render(label) + "\n\n" +
 			m.InputValue + "\n\n" +
 			inactiveText.Render("Enter = save • Esc = cancel")
+
 	} else {
 		switch m.ActivePane {
 		case PaneProjects:
@@ -78,28 +97,17 @@ func (m Model) View() string {
 		}
 	}
 
-	// ---------- RESPONSIVE FRAME ----------
-	width := m.Width
-	height := m.Height
-	if width < 60 {
-		width = 60
-	}
-	if height < 20 {
-		height = 20
-	}
-
-	// Render bordered app
+	// ---------- APP FRAME ----------
 	framed := appBorder.
-		Width(width-2).
-		Height(height-2).
+		Width(m.Width-2).
+		Height(m.Height-2).
 		Padding(1, 2).
 		Render(inner)
 
-	// Overlay title ON the top border
 	title := appTitleStyle.Render(" Chromaboard ")
 
 	titleLine := lipgloss.Place(
-		width-2,
+		m.Width-2,
 		1,
 		lipgloss.Center,
 		lipgloss.Top,
@@ -113,7 +121,36 @@ func (m Model) View() string {
 	)
 }
 
-/* ================= PROJECT SELECTION ================= */
+/* ================= TOO SMALL VIEW ================= */
+
+func renderTooSmall(m Model) string {
+	message := fmt.Sprintf(
+		"Terminal too small\n\nRequired:\n  width  ≥ %d\n  height ≥ %d\n\nCurrent:\n  width  = %d\n  height = %d",
+		MinWidth,
+		MinHeight,
+		m.Width,
+		m.Height,
+	)
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("196")).
+		Padding(1, 2).
+		Render(
+			warnTitle.Render(" Resize Required ") + "\n\n" +
+				warnText.Render(message),
+		)
+
+	return lipgloss.Place(
+		m.Width,
+		m.Height,
+		lipgloss.Center,
+		lipgloss.Center,
+		box,
+	)
+}
+
+/* ================= PROJECTS ================= */
 
 func renderProjectsPane(m Model) string {
 	var b strings.Builder
