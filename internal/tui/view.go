@@ -7,8 +7,7 @@ import (
 )
 
 var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true)
+	titleStyle = lipgloss.NewStyle().Bold(true)
 
 	activeStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("205")).
@@ -17,14 +16,21 @@ var (
 	inactiveStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
 
-	columnStyle = lipgloss.NewStyle().
+	todoBorder = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			Padding(0, 1).
-			Width(24)
+			BorderForeground(lipgloss.Color("196"))
+
+	pendingBorder = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("220"))
+
+	doneBorder = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("46"))
 )
 
 func (m Model) View() string {
-	// INPUT MODE VIEW
+	// ---------- INPUT MODE ----------
 	if m.InputActive {
 		label := "Input:"
 		if m.InputType == InputNewProject {
@@ -32,6 +38,9 @@ func (m Model) View() string {
 		}
 		if m.InputType == InputNewTask {
 			label = "New Task:"
+		}
+		if m.InputType == InputRenameTask {
+			label = "Rename Task:"
 		}
 
 		return "\n" +
@@ -50,9 +59,8 @@ func (m Model) View() string {
 	}
 }
 
-/*
-PROJECTS VIEW
-*/
+/* ---------- PROJECTS ---------- */
+
 func renderProjects(m Model) string {
 	var b strings.Builder
 
@@ -73,28 +81,29 @@ func renderProjects(m Model) string {
 	return b.String()
 }
 
-/*
-BOARD VIEW
-*/
+/* ---------- BOARD ---------- */
+
 func renderBoard(m Model) string {
 	if m.CurrentProject == nil {
 		return "no project loaded"
 	}
 
-	todo := renderColumn(m, ColumnTodo, "TODO")
-	pending := renderColumn(m, ColumnPending, "Pending")
-	done := renderColumn(m, ColumnDone, "Done")
+	colWidth := (m.Width - 6) / 3
+
+	todo := renderColumn(m, ColumnTodo, "TODO", colWidth)
+	pending := renderColumn(m, ColumnPending, "Pending", colWidth)
+	done := renderColumn(m, ColumnDone, "Done", colWidth)
 
 	board := lipgloss.JoinHorizontal(lipgloss.Top, todo, pending, done)
 
 	footer := inactiveStyle.Render(
-		"\nh/l: column  j/k: move  a: add  m: move  d: delete  esc: back",
+		"\nh/l: column  j/k: move  a: add  r: rename  m: move  d: delete  esc: back",
 	)
 
 	return titleStyle.Render(m.CurrentProject.Name) + "\n\n" + board + footer
 }
 
-func renderColumn(m Model, col Column, title string) string {
+func renderColumn(m Model, col Column, title string, width int) string {
 	var b strings.Builder
 
 	if m.ActiveColumn == col {
@@ -123,5 +132,16 @@ func renderColumn(m Model, col Column, title string) string {
 		b.WriteString(inactiveStyle.Render("(empty)\n"))
 	}
 
-	return columnStyle.Render(b.String())
+	style := todoBorder
+	if col == ColumnPending {
+		style = pendingBorder
+	}
+	if col == ColumnDone {
+		style = doneBorder
+	}
+
+	return style.
+		Width(width).
+		Padding(0, 1).
+		Render(b.String())
 }
