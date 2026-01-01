@@ -1,54 +1,78 @@
+// safe
+
 package storage
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
+	"strings"
 
 	"github.com/goushalk/chromaboard/internal/domain"
 )
 
-// Load file.
+func LoadRegistry(projectName string) (domain.Project, error) {
+	var project domain.Project
 
-func LoadRegistary(projectName string) (domain.Project, error) {
-
-	var ProjectStruct domain.Project
-
-	FilePath, err := ProjectRegPath(projectName)
+	filePath, err := ProjectRegPath(projectName)
 	if err != nil {
-		return ProjectStruct, err
+		return project, err
 	}
 
-	data, err := os.ReadFile(FilePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return ProjectStruct, err
+		return project, err
 	}
 
-	jsonErr := json.Unmarshal(data, &ProjectStruct)
-	if jsonErr != nil {
-		return ProjectStruct, errors.New("curropted json")
+	if err := json.Unmarshal(data, &project); err != nil {
+		return project, err
 	}
 
-	return ProjectStruct, nil
+	return project, nil
 }
 
-// Create file if it dosent exist.
-
-func CreateRegistry(projecFiletName string) (string, error) {
-
-	EnsureStorage()
-	projectName, err := ProjectRegPath(projecFiletName)
-
-	if err != nil {
-		return "", err
+func SaveRegistry(project domain.Project) error {
+	if err := EnsureStorage(); err != nil {
+		return err
 	}
 
-	File, err := os.Create(projectName)
-
+	filePath, err := ProjectRegPath(project.Name)
 	if err != nil {
-		return "file not created", err
+		return err
 	}
-	defer File.Close()
 
-	return "file successfuly created", nil
+	data, err := json.MarshalIndent(project, "", " ")
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(filePath, data, 0o664); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ListProjects() ([]string, error) {
+	projectDir, err := ProjectDir()
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := os.ReadDir(projectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var projects []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if strings.HasSuffix(name, ".json") {
+			projects = append(projects, strings.TrimSuffix(name, ".json"))
+		}
+	}
+
+	return projects, nil
 }

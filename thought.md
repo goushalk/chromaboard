@@ -1,5 +1,5 @@
 `
- Step 1: Define the problem in one sentence. If you can’t, stop.
+
  Step 2: List user actions, not code. This becomes the workflow.
  Step 3: Map actions to responsibilities (modules). Think roles, not filenames.
  Step 4: Every file must have a single purpose. If it can’t explain why it exists, remove it.
@@ -149,3 +149,30 @@ This is where the app “comes alive”.
 - Rendering only.
 - No decisions.
 - No mutation.
+
+
+`
+  file and the function singnature:
+
+  storage/local_storage.go :
+
+    func DataDir() (string, error),
+    func ProjectDir() (string, error),
+    func ProjectRegPath(projectName string) (string, error),
+    func EnsureStorage() error,
+    func ExistsPath(path string) (bool, error)
+
+  storage/project.go :
+    
+    func LoadRegistry(projectName string) (domain.Project, error),
+    func SaveRegistry(project domain.Project) error
+
+  domain/project.go :
+  
+    func NewProject(name string) Project
+    func (p *Project) AddTask(title string)
+    func (p *Project) MoveTask(taskID int, status Status) error
+    func (p *Project) DeleteTask(taskID int) error
+    func (p *Project) Rename(name string)
+
+`

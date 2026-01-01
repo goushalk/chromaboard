@@ -28,7 +28,7 @@ func ProjectDir() (string, error) { // defines where the projects files should b
 		return "", err
 	}
 
-	return filepath.Join(dataDir, "Projects"), nil
+	return filepath.Join(dataDir, "projects"), nil
 }
 
 func ProjectRegPath(projectName string) (string, error) { // defines where the projects registry file should be.
@@ -50,7 +50,7 @@ func EnsureStorage() error { // Ensures that all the above directories exist.
 		return err
 	}
 
-	prjectDir, err := ProjectDir()
+	projectDir, err := ProjectDir()
 	if err != nil {
 
 		return err
@@ -60,7 +60,7 @@ func EnsureStorage() error { // Ensures that all the above directories exist.
 		return err
 	}
 
-	if err := os.MkdirAll(prjectDir, 0o755); err != nil {
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		return err
 	}
 
@@ -71,7 +71,7 @@ func EnsureStorage() error { // Ensures that all the above directories exist.
 
 func ExistsPath(path string) (bool, error) {
 	if path == "" {
-		return false, errors.New("path does not exist")
+		return false, errors.New("Empty path")
 	}
 
 	_, err := os.Stat(path)
