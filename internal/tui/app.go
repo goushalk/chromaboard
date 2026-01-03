@@ -6,6 +6,9 @@ import (
 	"github.com/goushalk/chromaboard/internal/domain"
 )
 
+/*
+High-level panes
+*/
 type Pane int
 
 const (
@@ -13,6 +16,9 @@ const (
 	PaneBoard
 )
 
+/*
+Board columns (UI concept)
+*/
 type Column int
 
 const (
@@ -21,16 +27,26 @@ const (
 	ColumnDone
 )
 
-// INPUT PURPOSE
+/*
+Input mode purpose
+*/
 type InputMode int
 
 const (
 	InputNone InputMode = iota
 	InputNewProject
 	InputNewTask
+	InputRenameTask
 )
 
+/*
+Model represents the entire UI state
+*/
 type Model struct {
+	// Terminal size
+	Width  int
+	Height int
+
 	// Navigation
 	ActivePane Pane
 

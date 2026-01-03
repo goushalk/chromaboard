@@ -9,11 +9,15 @@ import (
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case tea.WindowSizeMsg:
+		m.Width = msg.Width
+		m.Height = msg.Height
+		return m, nil
+
 	case tea.KeyMsg:
 
-		// ==================================================
-		// INPUT MODE (text entry has highest priority)
-		// ==================================================
+		// ================= INPUT MODE =================
 		if m.InputActive {
 			switch msg.String() {
 
@@ -39,6 +43,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.CurrentProject.AddTask(m.InputValue)
 						_ = storage.SaveRegistry(*m.CurrentProject)
 					}
+
+				case InputRenameTask:
+					if m.CurrentProject != nil {
+						taskID, ok := selectedTaskID(m)
+						if ok {
+							_ = m.CurrentProject.RenameTask(taskID, m.InputValue)
+							_ = storage.SaveRegistry(*m.CurrentProject)
+						}
+					}
 				}
 
 				m.InputActive = false
@@ -60,22 +73,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// ==================================================
-		// GLOBAL KEYS
-		// ==================================================
+		// ================= GLOBAL =================
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}
 
-		// ==================================================
-		// PANE LOGIC
-		// ==================================================
+		// ================= PANES =================
 		switch m.ActivePane {
 
-		// -----------------------
-		// PROJECTS PANE
-		// -----------------------
+		// ---------- PROJECTS ----------
 		case PaneProjects:
 			switch msg.String() {
 
@@ -112,9 +119,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.InputValue = ""
 			}
 
-		// -----------------------
-		// BOARD PANE
-		// -----------------------
+		// ---------- BOARD ----------
 		case PaneBoard:
 			if m.CurrentProject == nil {
 				m.ActivePane = PaneProjects
@@ -128,7 +133,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.CurrentProject = nil
 				m.TaskIndex = 0
 
-			// Column navigation
 			case "h", "left":
 				if m.ActiveColumn > ColumnTodo {
 					m.ActiveColumn--
@@ -141,7 +145,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.TaskIndex = 0
 				}
 
-			// Task navigation
 			case "j", "down":
 				if m.TaskIndex < countTasksInColumn(m)-1 {
 					m.TaskIndex++
@@ -152,13 +155,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.TaskIndex--
 				}
 
-			// Add task
 			case "a":
 				m.InputActive = true
 				m.InputType = InputNewTask
 				m.InputValue = ""
 
-			// Move task forward
+			case "r":
+				m.InputActive = true
+				m.InputType = InputRenameTask
+				m.InputValue = ""
+
 			case "m":
 				taskID, ok := selectedTaskID(m)
 				if !ok {
@@ -173,7 +179,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				_ = storage.SaveRegistry(*m.CurrentProject)
 
-			// Delete task
 			case "d":
 				taskID, ok := selectedTaskID(m)
 				if !ok {
@@ -197,9 +202,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-/*
-HELPERS (pure UI helpers)
-*/
+/* ---------- HELPERS ---------- */
 
 func countTasksInColumn(m Model) int {
 	count := 0
