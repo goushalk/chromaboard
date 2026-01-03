@@ -17,6 +17,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 
+		// ================= HELP MODE =================
+		if m.ShowHelp {
+			switch msg.String() {
+			case "?", "esc":
+				m.ShowHelp = false
+			}
+			return m, nil
+		}
+
+		// Toggle help (global)
+		if msg.String() == "?" {
+			m.ShowHelp = true
+			return m, nil
+		}
+
 		// ================= INPUT MODE =================
 		if m.InputActive {
 			switch msg.String() {
@@ -82,7 +97,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// ================= PANES =================
 		switch m.ActivePane {
 
-		// ---------- PROJECTS ----------
 		case PaneProjects:
 			switch msg.String() {
 
@@ -119,7 +133,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.InputValue = ""
 			}
 
-		// ---------- BOARD ----------
 		case PaneBoard:
 			if m.CurrentProject == nil {
 				m.ActivePane = PaneProjects
@@ -167,86 +180,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case "m":
 				taskID, ok := selectedTaskID(m)
-				if !ok {
-					return m, nil
+				if ok {
+					_ = m.CurrentProject.MoveTask(taskID, columnToNextStatus(m.ActiveColumn))
+					_ = storage.SaveRegistry(*m.CurrentProject)
 				}
-
-				next := columnToNextStatus(m.ActiveColumn)
-				if err := m.CurrentProject.MoveTask(taskID, next); err != nil {
-					m.Error = err
-					return m, nil
-				}
-
-				_ = storage.SaveRegistry(*m.CurrentProject)
 
 			case "d":
 				taskID, ok := selectedTaskID(m)
-				if !ok {
-					return m, nil
-				}
-
-				if err := m.CurrentProject.DeleteTask(taskID); err != nil {
-					m.Error = err
-					return m, nil
-				}
-
-				_ = storage.SaveRegistry(*m.CurrentProject)
-
-				if m.TaskIndex > 0 {
-					m.TaskIndex--
+				if ok {
+					_ = m.CurrentProject.DeleteTask(taskID)
+					_ = storage.SaveRegistry(*m.CurrentProject)
+					if m.TaskIndex > 0 {
+						m.TaskIndex--
+					}
 				}
 			}
 		}
 	}
 
 	return m, nil
-}
-
-/* ---------- HELPERS ---------- */
-
-func countTasksInColumn(m Model) int {
-	count := 0
-	for _, t := range m.CurrentProject.Tasks {
-		if statusToColumn(t.Status) == m.ActiveColumn {
-			count++
-		}
-	}
-	return count
-}
-
-func selectedTaskID(m Model) (int, bool) {
-	index := 0
-	for _, t := range m.CurrentProject.Tasks {
-		if statusToColumn(t.Status) == m.ActiveColumn {
-			if index == m.TaskIndex {
-				return t.ID, true
-			}
-			index++
-		}
-	}
-	return 0, false
-}
-
-func statusToColumn(s domain.Status) Column {
-	switch s {
-	case domain.StatusTodo:
-		return ColumnTodo
-	case domain.StatusPending:
-		return ColumnPending
-	case domain.StatusDone:
-		return ColumnDone
-	default:
-		return ColumnTodo
-	}
-}
-
-func columnToNextStatus(c Column) domain.Status {
-	switch c {
-	case ColumnTodo:
-		return domain.StatusPending
-	case ColumnPending:
-		return domain.StatusDone
-	default:
-		return domain.StatusDone
-	}
 }

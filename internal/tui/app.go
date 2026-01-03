@@ -64,6 +64,9 @@ type Model struct {
 	InputValue  string
 	InputType   InputMode
 
+	// Help overlay
+	ShowHelp bool
+
 	// UI feedback
 	Error  error
 	Status string
