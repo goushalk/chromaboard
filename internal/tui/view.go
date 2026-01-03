@@ -7,18 +7,13 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-/* ================= CONSTANTS ================= */
-
 const (
 	MinWidth  = 80
 	MinHeight = 24
 )
 
-/* ================= STYLES ================= */
-
 var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true)
+	titleStyle = lipgloss.NewStyle().Bold(true)
 
 	activeText = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("231")).
@@ -27,20 +22,14 @@ var (
 	inactiveText = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
 
-	warnTitle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Bold(true)
-
-	warnText = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("250"))
-
 	appBorder = lipgloss.NewStyle().
 			Border(lipgloss.DoubleBorder()).
 			BorderForeground(lipgloss.Color("81"))
 
-	appTitleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("81")).
-			Bold(true)
+	helpBorder = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("81")).
+			Padding(1, 2)
 
 	inactivePaneBorder = lipgloss.NewStyle().
 				Border(lipgloss.NormalBorder()).
@@ -59,12 +48,15 @@ var (
 				BorderForeground(lipgloss.Color("46"))
 )
 
-/* ================= VIEW ================= */
-
 func (m Model) View() string {
-	// ---------- TERMINAL SIZE GUARD ----------
+	// ---------- SIZE GUARD ----------
 	if m.Width < MinWidth || m.Height < MinHeight {
 		return renderTooSmall(m)
+	}
+
+	// ---------- HELP OVERLAY ----------
+	if m.ShowHelp {
+		return renderHelp(m)
 	}
 
 	var inner string
@@ -92,54 +84,75 @@ func (m Model) View() string {
 			inner = renderProjectsPane(m)
 		case PaneBoard:
 			inner = renderBoard(m)
-		default:
-			inner = "unknown state"
 		}
 	}
 
-	// ---------- APP FRAME ----------
 	framed := appBorder.
 		Width(m.Width-2).
 		Height(m.Height-2).
 		Padding(1, 2).
 		Render(inner)
 
-	title := appTitleStyle.Render(" Chromaboard ")
-
-	titleLine := lipgloss.Place(
+	title := lipgloss.Place(
 		m.Width-2,
 		1,
 		lipgloss.Center,
 		lipgloss.Top,
-		title,
+		titleStyle.Render(" Chromaboard "),
 	)
 
-	return lipgloss.JoinVertical(
-		lipgloss.Top,
-		titleLine,
-		framed,
+	return lipgloss.JoinVertical(lipgloss.Top, title, framed)
+}
+
+/* ================= HELP ================= */
+
+func renderHelp(m Model) string {
+	content := `
+Navigation
+  j / k        Move up / down
+  h / l        Switch columns
+  tab          Switch pane
+
+Actions
+  n            New project
+  a            Add task
+  r            Rename task
+  d            Delete task
+  m            Move task
+
+General
+  ?            Toggle help
+  esc          Back / Close
+  q            Quit
+`
+
+	box := helpBorder.Render(
+		titleStyle.Render(" Help ") + "\n" +
+			inactiveText.Render(strings.TrimSpace(content)),
+	)
+
+	return lipgloss.Place(
+		m.Width,
+		m.Height,
+		lipgloss.Center,
+		lipgloss.Center,
+		box,
 	)
 }
 
-/* ================= TOO SMALL VIEW ================= */
+/* ================= TOO SMALL ================= */
 
 func renderTooSmall(m Model) string {
-	message := fmt.Sprintf(
+	msg := fmt.Sprintf(
 		"Terminal too small\n\nRequired:\n  width  ≥ %d\n  height ≥ %d\n\nCurrent:\n  width  = %d\n  height = %d",
-		MinWidth,
-		MinHeight,
-		m.Width,
-		m.Height,
+		MinWidth, MinHeight, m.Width, m.Height,
 	)
 
 	box := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("196")).
 		Padding(1, 2).
-		Render(
-			warnTitle.Render(" Resize Required ") + "\n\n" +
-				warnText.Render(message),
-		)
+		Render(msg)
 
 	return lipgloss.Place(
 		m.Width,
@@ -157,22 +170,17 @@ func renderProjectsPane(m Model) string {
 
 	b.WriteString(titleStyle.Render("Projects") + "\n\n")
 
-	if len(m.Projects) == 0 {
-		b.WriteString(inactiveText.Render("No projects yet\n"))
-		b.WriteString(inactiveText.Render("Press 'n' to create one"))
-	} else {
-		for i, name := range m.Projects {
-			if i == m.ProjectIndex {
-				b.WriteString(activeText.Render("▶ " + name))
-			} else {
-				b.WriteString(inactiveText.Render("  " + name))
-			}
-			b.WriteString("\n")
+	for i, name := range m.Projects {
+		if i == m.ProjectIndex {
+			b.WriteString(activeText.Render("▶ " + name))
+		} else {
+			b.WriteString(inactiveText.Render("  " + name))
 		}
+		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(inactiveText.Render("n: new • enter: open • q: quit"))
+	b.WriteString(inactiveText.Render("n: new • enter: open • ?: help"))
 
 	return inactivePaneBorder.
 		Width(m.Width-8).
@@ -196,11 +204,10 @@ func renderBoard(m Model) string {
 	board := lipgloss.JoinHorizontal(lipgloss.Top, todo, pending, done)
 
 	footer := inactiveText.Render(
-		"\nh/l: column • j/k: move • a: add • r: rename • m: move • d: delete • esc: back",
+		"\nh/l: column • j/k: move • a: add • r: rename • ?: help",
 	)
 
-	return titleStyle.Render(m.CurrentProject.Name) +
-		"\n\n" + board + "\n" + footer
+	return board + "\n" + footer
 }
 
 /* ================= COLUMN ================= */
@@ -230,15 +237,6 @@ func renderColumn(m Model, col Column, title string, width int) string {
 		index++
 	}
 
-	if index == 0 {
-		b.WriteString(inactiveText.Render("(empty)\n"))
-	}
-
-	minHeight := m.Height - 12
-	if minHeight < 10 {
-		minHeight = 10
-	}
-
 	var style lipgloss.Style
 	if m.ActiveColumn == col {
 		switch col {
@@ -255,7 +253,7 @@ func renderColumn(m Model, col Column, title string, width int) string {
 
 	return style.
 		Width(width).
-		Height(minHeight).
+		Height(m.Height-12).
 		Padding(1, 2).
 		Render(b.String())
 }
