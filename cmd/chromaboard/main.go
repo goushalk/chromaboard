@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -17,11 +18,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Load project list (filenames without .json)
-	projects, err := storage.ListProjects()
+	// Load project list with metadata
+	summaries, err := storage.ListProjectSummaries()
 	if err != nil {
 		fmt.Println("failed to load projects:", err)
 		os.Exit(1)
+	}
+
+	projects := make([]string, 0, len(summaries))
+	projectDates := make(map[string]time.Time, len(summaries))
+	for _, summary := range summaries {
+		projects = append(projects, summary.Name)
+		projectDates[summary.Name] = summary.CreatedAt
 	}
 
 	// Initialize TUI model
@@ -29,6 +37,7 @@ func main() {
 		ActivePane:   tui.PaneProjects,
 		Projects:     projects,
 		ProjectIndex: 0,
+		ProjectDates: projectDates,
 	}
 
 	// Start Bubble Tea program

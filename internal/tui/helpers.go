@@ -1,6 +1,10 @@
 package tui
 
-import "github.com/goushalk/chromaboard/internal/domain"
+import (
+	"strings"
+
+	"github.com/goushalk/chromaboard/internal/domain"
+)
 
 /*
 Returns the ID of the currently selected task in the active column.
@@ -60,6 +64,19 @@ func columnToNextStatus(col Column) domain.Status {
 	}
 }
 
+func columnToPrevStatus(col Column) domain.Status {
+	switch col {
+	case ColumnTodo:
+		return domain.StatusTodo
+	case ColumnPending:
+		return domain.StatusTodo
+	case ColumnDone:
+		return domain.StatusPending
+	default:
+		return domain.StatusTodo
+	}
+}
+
 /*
 Maps a domain task status to a UI column.
 */
@@ -74,4 +91,32 @@ func statusToColumn(status domain.Status) Column {
 	default:
 		return ColumnTodo
 	}
+}
+
+func selectedTask(m Model) (*domain.Task, bool) {
+	if m.CurrentProject == nil {
+		return nil, false
+	}
+
+	task, err := m.CurrentProject.TaskByID(m.SelectedTaskID)
+	if err != nil {
+		return nil, false
+	}
+
+	return task, true
+}
+
+func parseTwoPartInput(input string) (string, string, bool) {
+	left, right, found := strings.Cut(input, "|")
+	if !found {
+		return "", "", false
+	}
+
+	left = strings.TrimSpace(left)
+	right = strings.TrimSpace(right)
+	if left == "" || right == "" {
+		return "", "", false
+	}
+
+	return left, right, true
 }

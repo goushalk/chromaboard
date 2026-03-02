@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/goushalk/chromaboard/internal/domain"
@@ -14,6 +16,7 @@ type Pane int
 const (
 	PaneProjects Pane = iota
 	PaneBoard
+	PaneTaskDetail
 )
 
 /*
@@ -37,6 +40,10 @@ const (
 	InputNewProject
 	InputNewTask
 	InputRenameTask
+	InputTaskDescription
+	InputNewSubSection
+	InputNewSubTask
+	InputToggleSubTask
 )
 
 /*
@@ -53,11 +60,13 @@ type Model struct {
 	// Projects pane
 	Projects     []string
 	ProjectIndex int
+	ProjectDates map[string]time.Time
 
 	// Board
 	CurrentProject *domain.Project
 	ActiveColumn   Column
 	TaskIndex      int
+	SelectedTaskID int
 
 	// Input mode
 	InputActive bool

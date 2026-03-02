@@ -6,9 +6,15 @@ import (
 	"encoding/json"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/goushalk/chromaboard/internal/domain"
 )
+
+type ProjectSummary struct {
+	Name      string
+	CreatedAt time.Time
+}
 
 func LoadRegistry(projectName string) (domain.Project, error) {
 	var project domain.Project
@@ -75,4 +81,39 @@ func ListProjects() ([]string, error) {
 	}
 
 	return projects, nil
+}
+
+func DeleteProject(projectName string) error {
+	filePath, err := ProjectRegPath(projectName)
+	if err != nil {
+		return err
+	}
+
+	if err := os.Remove(filePath); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ListProjectSummaries() ([]ProjectSummary, error) {
+	projects, err := ListProjects()
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]ProjectSummary, 0, len(projects))
+	for _, name := range projects {
+		project, err := LoadRegistry(name)
+		if err != nil {
+			return nil, err
+		}
+
+		summaries = append(summaries, ProjectSummary{
+			Name:      name,
+			CreatedAt: project.CreatedAt,
+		})
+	}
+
+	return summaries, nil
 }

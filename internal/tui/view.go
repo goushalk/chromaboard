@@ -3,8 +3,10 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/goushalk/chromaboard/internal/domain"
 )
 
 const (
@@ -21,6 +23,15 @@ var (
 
 	inactiveText = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
+
+	doneText = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Strikethrough(true)
+
+	doneActiveText = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("231")).
+			Bold(true).
+			Strikethrough(true)
 
 	appBorder = lipgloss.NewStyle().
 			Border(lipgloss.DoubleBorder()).
@@ -68,15 +79,30 @@ func (m Model) View() string {
 			label = "New Project"
 		}
 		if m.InputType == InputNewTask {
-			label = "New Task"
+			label = "New Task (title | description)"
 		}
 		if m.InputType == InputRenameTask {
 			label = "Rename Task"
+		}
+		if m.InputType == InputTaskDescription {
+			label = "Task Description"
+		}
+		if m.InputType == InputNewSubSection {
+			label = "New Sub Section"
+		}
+		if m.InputType == InputNewSubTask {
+			label = "New Sub Task (section | subtask)"
+		}
+		if m.InputType == InputToggleSubTask {
+			label = "Toggle Sub Task (section | subtask)"
 		}
 
 		inner = titleStyle.Render(label) + "\n\n" +
 			m.InputValue + "\n\n" +
 			inactiveText.Render("Enter = save • Esc = cancel")
+		if m.Status != "" {
+			inner += "\n" + inactiveText.Render(m.Status)
+		}
 
 	} else {
 		switch m.ActivePane {
@@ -84,6 +110,8 @@ func (m Model) View() string {
 			inner = renderProjectsPane(m)
 		case PaneBoard:
 			inner = renderBoard(m)
+		case PaneTaskDetail:
+			inner = renderTaskDetail(m)
 		}
 	}
 
@@ -115,10 +143,16 @@ Navigation
 
 Actions
   n            New project
-  a            Add task
+  d            Delete project (in Projects pane)
+  a            Add task (title | description)
   r            Rename task
-  d            Delete task
-  m            Move task
+  d            Delete task (in Board pane)
+  m / M        Move task right / left
+  enter        Open selected task
+  e            Edit task description (Task Detail)
+  s            Add sub section (Task Detail)
+  t            Add sub task (Task Detail)
+  x            Toggle sub task done (Task Detail)
 
 General
   ?            Toggle help
@@ -171,16 +205,21 @@ func renderProjectsPane(m Model) string {
 	b.WriteString(titleStyle.Render("Projects") + "\n\n")
 
 	for i, name := range m.Projects {
+		line := "  " + name
+		if createdAt, ok := m.ProjectDates[name]; ok {
+			line += "  (" + formatCreatedAt(createdAt) + ")"
+		}
+
 		if i == m.ProjectIndex {
-			b.WriteString(activeText.Render("▶ " + name))
+			b.WriteString(activeText.Render("▶ " + strings.TrimPrefix(line, "  ")))
 		} else {
-			b.WriteString(inactiveText.Render("  " + name))
+			b.WriteString(inactiveText.Render(line))
 		}
 		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(inactiveText.Render("n: new • enter: open • ?: help"))
+	b.WriteString(inactiveText.Render("n: new • d: delete • enter: open • ?: help"))
 
 	return inactivePaneBorder.
 		Width(m.Width-8).
@@ -204,7 +243,7 @@ func renderBoard(m Model) string {
 	board := lipgloss.JoinHorizontal(lipgloss.Top, todo, pending, done)
 
 	footer := inactiveText.Render(
-		"\nh/l: column • j/k: move • a: add • r: rename • ?: help",
+		"\nh/l: column • j/k: move • enter: open task • a: add • m/M: move task • ?: help",
 	)
 
 	return board + "\n" + footer
@@ -228,10 +267,22 @@ func renderColumn(m Model, col Column, title string, width int) string {
 		}
 
 		line := "• " + t.Title
-		if m.ActiveColumn == col && index == m.TaskIndex {
-			b.WriteString(activeText.Render(line))
+		if t.Description != "" || len(t.SubSections) > 0 {
+			line += " *"
+		}
+
+		if t.Status == domain.StatusDone {
+			if m.ActiveColumn == col && index == m.TaskIndex {
+				b.WriteString(doneActiveText.Render(line))
+			} else {
+				b.WriteString(doneText.Render(line))
+			}
 		} else {
-			b.WriteString(inactiveText.Render(line))
+			if m.ActiveColumn == col && index == m.TaskIndex {
+				b.WriteString(activeText.Render(line))
+			} else {
+				b.WriteString(inactiveText.Render(line))
+			}
 		}
 		b.WriteString("\n")
 		index++
@@ -256,4 +307,67 @@ func renderColumn(m Model, col Column, title string, width int) string {
 		Height(m.Height-12).
 		Padding(1, 2).
 		Render(b.String())
+}
+
+func renderTaskDetail(m Model) string {
+	task, ok := selectedTask(m)
+	if !ok {
+		return inactiveText.Render("Task not found")
+	}
+
+	var b strings.Builder
+	b.WriteString(titleStyle.Render("Task Detail") + "\n\n")
+	if task.Status == domain.StatusDone {
+		b.WriteString(doneActiveText.Render(task.Title) + "\n")
+	} else {
+		b.WriteString(activeText.Render(task.Title) + "\n")
+	}
+	b.WriteString(inactiveText.Render("Status: "+string(task.Status)) + "\n\n")
+	b.WriteString(inactiveText.Render("Created: "+formatCreatedAt(task.CreatedAt)) + "\n\n")
+
+	if task.Description == "" {
+		b.WriteString(inactiveText.Render("Description: (empty)") + "\n\n")
+	} else {
+		b.WriteString(inactiveText.Render("Description:") + "\n")
+		b.WriteString(task.Description + "\n\n")
+	}
+
+	b.WriteString(inactiveText.Render("Sub Sections") + "\n")
+	if len(task.SubSections) == 0 {
+		b.WriteString(inactiveText.Render("  (none)") + "\n")
+	} else {
+		for _, section := range task.SubSections {
+			b.WriteString("• " + section.Title + "\n")
+			if len(section.SubTasks) == 0 {
+				b.WriteString(inactiveText.Render("  - (no sub tasks)") + "\n")
+				continue
+			}
+			for _, subTask := range section.SubTasks {
+				mark := "[ ]"
+				if subTask.Done {
+					mark = "[x]"
+				}
+				b.WriteString("  - " + mark + " " + subTask.Title + "\n")
+			}
+		}
+	}
+
+	b.WriteString("\n")
+	b.WriteString(inactiveText.Render("e: description • s: sub section • t: sub task • x: toggle sub task • esc: back"))
+	if m.Status != "" {
+		b.WriteString("\n" + inactiveText.Render("Status: "+m.Status))
+	}
+
+	return inactivePaneBorder.
+		Width(m.Width-8).
+		Height(m.Height-8).
+		Padding(1, 2).
+		Render(b.String())
+}
+
+func formatCreatedAt(t time.Time) string {
+	if t.IsZero() {
+		return "unknown"
+	}
+	return t.Local().Format("2006-01-02 15:04:05")
 }
